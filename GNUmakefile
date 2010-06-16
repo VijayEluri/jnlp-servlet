@@ -1,8 +1,12 @@
-# environment variable CLASS_PATH should contain path to javaws.jar and servlet.jar
+
 # environment variable FILE_SEPARATOR variable for file separator (; on win32 and : on unix)
+FILE_SEPARATOR = :
+# environment variable CLASS_PATH should contain path to javaws.jar and servlet.jar
+CLASS_PATH = $(JAVA_HOME)/lib/javaws.jar$(FILE_SEPARATOR)deplib/servlet-api.jar
 # environment variable TMPDIR should point to tmp directory 
 # environment variable SDK_HOME should point to SDK directory
-JAVAC		= $(SDK_HOME)/bin/javac
+SDK_HOME = $(JAVA_HOME)
+JAVAC		= $(SDK_HOME)/bin/javac -source 1.5 -target 1.5
 JAR		= $(SDK_HOME)/bin/jar
 CLASSDESTDIR	= classes
 MKDIR		= mkdir -p
@@ -34,8 +38,8 @@ FILES_servlet_java = \
 FILES_servlet_class = $(FILES_servlet_java:%.java=$(CLASSDESTDIR)/%.class)
 
 FILES_jardiff_java = \
-        jnlp/sample/jardiff/JarDiff.java \
-        jnlp/sample/jardiff/JarDiffConstants.java \
+    jnlp/sample/jardiff/JarDiffConstants.java \
+    jnlp/sample/jardiff/JarDiff.java \
 	jnlp/sample/jardiff/Patcher.java \
 	jnlp/sample/jardiff/JarDiffPatcher.java
 
