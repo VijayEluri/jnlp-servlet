@@ -40,6 +40,7 @@ import java.io.IOException;
 import java.util.ResourceBundle;
 
 import javax.servlet.ServletConfig;
+import javax.servlet.ServletContext;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
@@ -255,7 +256,7 @@ public class JnlpDownloadServlet extends HttpServlet {
         }
 
         // Check if a JARDiff can be returned
-        if (dreq.getCurrentVersionId() != null && jnlpres.isJarFile()) {
+        if (jarDiffEnabled() && dreq.getCurrentVersionId() != null && jnlpres.isJarFile()) {
             DownloadResponse response = _jarDiffHandler.getJarDiffEntry(_resourceCatalog, dreq, jnlpres);
             if (response != null) {
                 _log.addInformational("servlet.log.info.jardiff.response");
@@ -273,5 +274,11 @@ public class JnlpDownloadServlet extends HttpServlet {
         // Return WAR file resource
         return DownloadResponse.getFileDownloadResponse(jr.getResource(), jr.getMimeType(), jr.getLastModified(), jr
                 .getReturnVersionId());
+    }
+
+    private boolean jarDiffEnabled() {
+        ServletContext context = getServletContext();
+        if (context == null) { return true; }
+        return !Boolean.valueOf(context.getInitParameter("jarDiffDisabled"));
     }
 }
