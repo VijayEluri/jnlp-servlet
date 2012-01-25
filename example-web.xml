@@ -16,4 +16,9 @@
 		<param-value>true</param-value>
 		<description>Whether jar differencing is disabled or not</description>
 	</context-param>
+    <context-param>
+        <param-name>packOnTheFly</param-name>
+        <param-value>true</param-value>
+        <description>Whether the servlet should attempt to create and save a pack200-gzip file on-the-fly</description>
+    </context-param>
 </web-app>

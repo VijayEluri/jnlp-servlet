@@ -36,10 +36,19 @@
 
 package jnlp.sample.servlet;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLConnection;
 import java.util.Date;
+import java.util.Map;
+import java.util.jar.JarFile;
+import java.util.jar.Pack200;
+import java.util.jar.Pack200.Packer;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import java.util.zip.GZIPOutputStream;
 
 import javax.servlet.ServletContext;
 
@@ -56,7 +65,8 @@ import javax.servlet.ServletContext;
  *     - lastModified date of WAR file resource
  * 
  */
-public class JnlpResource {       
+public class JnlpResource {
+	private static final Logger logger              = Logger.getLogger(JnlpResource.class.getName());
 	private static final String JNLP_MIME_TYPE      = "application/x-java-jnlp-file";
 	private static final String JAR_MIME_TYPE       = "application/x-java-archive";
 
@@ -78,7 +88,16 @@ public class JnlpResource {
 			if (!jarExtension .startsWith(".")) jarExtension  = "." + jarExtension ;
 			_jarExtension = jarExtension;	
 		}
-	}   
+	}
+	
+	private static Packer packer;
+	
+	static {
+		packer = Pack200.newPacker();
+		Map<String, String> p = packer.properties();
+		p.put(Packer.EFFORT, "7");
+		p.put(Packer.SEGMENT_LIMIT, "-1");
+	}
 
 	/* Pattern matching arguments */
 	private String _name;	  // Name of resource with path (this is the same as path for non-version based)
@@ -93,6 +112,7 @@ public class JnlpResource {
 	private String _mimeType;        // Mime-type for resource
 	private String _returnVersionId; // Version Id to return
 	private String _encoding;        // Accept encoding
+	private Boolean _packOnTheFly;
 
 	public JnlpResource(ServletContext context, String path) { 
 		this(context, null, null, null, null, null, path, null); 
@@ -128,70 +148,97 @@ public class JnlpResource {
 		_localeList = localeList;
 
 		_returnVersionId = returnVersionId;
+		_packOnTheFly = Boolean.valueOf(context.getInitParameter("packOnTheFly"));
 
 		/* Check for existance and get last modified timestamp */
 		try {
-			String orig_path = path.trim();
-			String search_path = orig_path;
-			_resource = context.getResource(orig_path);	
-			_mimeType = getMimeType(context, orig_path);
-			if (_resource != null) {
-
-				boolean found = false;
-				// pack200 compression
-				if (encoding != null && _mimeType != null &&
-						(_mimeType.compareTo(JAR_MIME_TYPE) == 0 || _mimeType.compareTo(JAR_MIME_TYPE_NEW) == 0) &&
-						encoding.toLowerCase().indexOf(DownloadResponse.PACK200_GZIP_ENCODING) > -1){
-					search_path = orig_path + ".pack.gz";
-					_resource = context.getResource(search_path);
-					// Get last modified time
-					if (_resource != null) {
-						_lastModified = getLastModified(context, _resource, search_path);
-						if (_lastModified != 0) {
-							_path = search_path;
-							found = true;
-						} else {
-							_resource = null;
-						}
-					}
-				}
-
-				// gzip compression
-				if (found == false && encoding != null &&
-						encoding.toLowerCase().indexOf(DownloadResponse.GZIP_ENCODING) > -1){
-					search_path = orig_path + ".gz";
-					_resource = context.getResource(search_path);
-					// Get last modified time
-					if (_resource != null) {
-						_lastModified = getLastModified(context, _resource, search_path);
-						if (_lastModified != 0) {
-							_path = search_path;
-							found = true;
-						} else {
-							_resource = null;
-						}
-					}
-				}
-
-				if (found == false) {
-					// no compression
-					search_path = orig_path;
-					_resource = context.getResource(search_path);
-					// Get last modified time
-					if (_resource != null) {
-						_lastModified = getLastModified(context, _resource, search_path);
-						if (_lastModified != 0) {
-							_path = search_path;
-							found = true;
-						} else {
-							_resource = null;
-						}
-					}
-				}		
-			}
+			_findResource(context, path, encoding, 0);
 		} catch(IOException ioe) {
 			_resource = null;
 		}				    			    
+	}
+
+	private void _findResource(ServletContext context, String path, String encoding, int count)
+			throws MalformedURLException {
+		if (count > 1) { return; } // only run through this twice at most
+		String orig_path = path.trim();
+		String search_path = orig_path;
+		_resource = context.getResource(orig_path);	
+		_mimeType = getMimeType(context, orig_path);
+		if (_resource != null) {
+
+			boolean found = false;
+			// pack200 compression
+			if (encoding != null && _mimeType != null &&
+					(_mimeType.compareTo(JAR_MIME_TYPE) == 0 || _mimeType.compareTo(JAR_MIME_TYPE_NEW) == 0) &&
+					encoding.toLowerCase().indexOf(DownloadResponse.PACK200_GZIP_ENCODING) > -1){
+				search_path = orig_path + ".pack.gz";
+				_resource = context.getResource(search_path);
+				// Get last modified time
+				if (_resource != null) {
+					_lastModified = getLastModified(context, _resource, search_path);
+					if (_lastModified != 0) {
+						_path = search_path;
+						found = true;
+					} else {
+						_resource = null;
+					}
+				}
+			}
+
+			// gzip compression
+			if (found == false && encoding != null &&
+					encoding.toLowerCase().indexOf(DownloadResponse.GZIP_ENCODING) > -1){
+				search_path = orig_path + ".gz";
+				_resource = context.getResource(search_path);
+				// Get last modified time
+				if (_resource != null) {
+					_lastModified = getLastModified(context, _resource, search_path);
+					if (_lastModified != 0) {
+						_path = search_path;
+						found = true;
+					} else {
+						_resource = null;
+					}
+				}
+			}
+
+			if (found == false) {
+				// no compression
+				search_path = orig_path;
+				_resource = context.getResource(search_path);
+				// Get last modified time
+				if (_resource != null) {
+					_lastModified = getLastModified(context, _resource, search_path);
+					if (_lastModified != 0) {
+						_path = search_path;
+						found = true;
+						if (count == 0 && _packOnTheFly) {
+							String realPath = context.getRealPath(_path);
+							_packAndCompress(realPath);
+							_findResource(context, path, encoding, count+1);
+						}
+					} else {
+						_resource = null;
+					}
+				}
+			}		
+		}
+	}
+
+	private void _packAndCompress(String path) {
+		try {
+			
+			JarFile jar = new JarFile(path);
+			GZIPOutputStream gzos = new GZIPOutputStream(new FileOutputStream(path + ".pack.gz"));
+			packer.pack(jar, gzos);
+			jar.close();
+			gzos.close();
+		} catch (IOException ioe) {
+			// we tried. it'll revert to sending the unpacked jar.
+			// FIXME It'll probably continually try to create this pack file on subsequent requests. Can we avoid that?
+			logger.log(Level.WARNING, "Failed to create .pack.gz file: " + path + ".pack.gz" + "\n" + toString(), ioe);
+		}
 	}
 
 	long getLastModified(ServletContext context, URL resource, String path) {
