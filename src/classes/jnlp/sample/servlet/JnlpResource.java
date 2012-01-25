@@ -97,6 +97,7 @@ public class JnlpResource {
 		Map<String, String> p = packer.properties();
 		p.put(Packer.EFFORT, "7");
 		p.put(Packer.SEGMENT_LIMIT, "-1");
+		p.put(Packer.KEEP_FILE_ORDER, Packer.TRUE);
 	}
 
 	/* Pattern matching arguments */
@@ -225,10 +226,20 @@ public class JnlpResource {
 			}		
 		}
 	}
-
+	
 	private void _packAndCompress(String path) {
+		// Can't use internal packing because of a memory leak.
+		// _packAndCompressInternal(path);
+		_packAndCompressExternal(path);
+	}
+
+	/**
+	 * Can't use this right now due to a memory leak.
+	 * See: http://bugs.sun.com/bugdatabase/view_bug.do?bug_id=6927240
+	 * @param path
+	 */
+	private void _packAndCompressInternal(String path) {
 		try {
-			
 			JarFile jar = new JarFile(path);
 			GZIPOutputStream gzos = new GZIPOutputStream(new FileOutputStream(path + ".pack.gz"));
 			packer.pack(jar, gzos);
@@ -238,6 +249,19 @@ public class JnlpResource {
 			// we tried. it'll revert to sending the unpacked jar.
 			// FIXME It'll probably continually try to create this pack file on subsequent requests. Can we avoid that?
 			logger.log(Level.WARNING, "Failed to create .pack.gz file: " + path + ".pack.gz" + "\n" + toString(), ioe);
+		}
+	}
+	
+	private void _packAndCompressExternal(String path) {
+		try {
+			String command = "pack200 --segment-limit=-1 -E7 -q " + path + ".pack.gz " + path;
+			logger.info("Running pack200 command: " + command);
+			Process p = Runtime.getRuntime().exec(command);
+			p.waitFor();
+		} catch (Exception ex) {
+			// we tried. it'll revert to sending the unpacked jar.
+			// FIXME It'll probably continually try to create this pack file on subsequent requests. Can we avoid that?
+			logger.log(Level.WARNING, "Failed to create .pack.gz file: " + path + ".pack.gz" + "\n" + toString(), ex);
 		}
 	}
 
