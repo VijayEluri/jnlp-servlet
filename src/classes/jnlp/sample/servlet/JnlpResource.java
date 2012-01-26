@@ -95,9 +95,6 @@ public class JnlpResource {
 	static {
 		packer = Pack200.newPacker();
 		Map<String, String> p = packer.properties();
-		p.put(Packer.EFFORT, "7");
-		p.put(Packer.SEGMENT_LIMIT, "-1");
-		p.put(Packer.KEEP_FILE_ORDER, Packer.TRUE);
 	}
 
 	/* Pattern matching arguments */
@@ -114,6 +111,7 @@ public class JnlpResource {
 	private String _returnVersionId; // Version Id to return
 	private String _encoding;        // Accept encoding
 	private Boolean _packOnTheFly;
+	private String _packCommand;
 
 	public JnlpResource(ServletContext context, String path) { 
 		this(context, null, null, null, null, null, path, null); 
@@ -150,6 +148,10 @@ public class JnlpResource {
 
 		_returnVersionId = returnVersionId;
 		_packOnTheFly = Boolean.valueOf(context.getInitParameter("packOnTheFly"));
+		_packCommand = context.getInitParameter("packCommand");
+		if (_packCommand == null) {
+			_packCommand = "pack200";
+		}
 
 		/* Check for existance and get last modified timestamp */
 		try {
@@ -254,7 +256,7 @@ public class JnlpResource {
 	
 	private void _packAndCompressExternal(String path) {
 		try {
-			String command = "pack200 --segment-limit=-1 -E7 -q " + path + ".pack.gz " + path;
+			String command = _packCommand + " -q " + path + ".pack.gz " + path;
 			logger.info("Running pack200 command: " + command);
 			Process p = Runtime.getRuntime().exec(command);
 			p.waitFor();

@@ -21,4 +21,9 @@
         <param-value>true</param-value>
         <description>Whether the servlet should attempt to create and save a pack200-gzip file on-the-fly</description>
     </context-param>
+    <context-param>
+        <param-name>packCommand</param-name>
+        <param-value>pack200 -E7 --segment-limit=-1</param-value>
+        <description>The command and options that should be used for pack200. If using signed jars, the settings need to be identical to the ones used to pack/unpack (normalize) the jar before signing!</description>
+    </context-param>
 </web-app>
